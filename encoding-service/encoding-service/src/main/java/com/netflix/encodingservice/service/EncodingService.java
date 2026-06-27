@@ -7,8 +7,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -111,7 +114,7 @@ public class EncodingService {
 
             //Step 1 : Download raw video from s3
             String localVideoPath = jobPath + "/raw_video.mp4";
-            downloadFromS3(event.getVideoKey(),localVideoPath);
+             downloadFromS3(event.getVideoKey(),localVideoPath);
             log.info("Raw video downloaded to {}", localVideoPath);
 
         // Step 2 & 3. Encode to Multiple Qualities + generate HLS
@@ -127,10 +130,107 @@ public class EncodingService {
                  encodeToHLS(localVideoPath,qualityDir,width,height,bitrate);
                  log.info("Encoded {}p successfully ", height);
             }
+            //Step 4 :Generate Master Playlist
+            String masterPlaylistPath = jobPath + "/encoded/master.m3u8";
+            generateMasterPlaylist(masterPlaylistPath);
+            log.info("Master playlist Generated Successfully");
+
+            //Step - 5 : Upload all resources file to s3
+            String encodedPrefix = "/encoded/" + event.getMovieId() + "/";
+            uploadedEncodedFilesToS3(jobPath + "/encoded" ,encodedPrefix);
+            log.info("All Encoded files Uploaded to s3 successfully ");
+
+            //Step 6: Publish video Encoded Event
+            String masterPlaylistKey = encodedPrefix + "master.m3u8";
+            String hlsUrl = "https://" + bucketName + ".s3.amazonaws.com/" + masterPlaylistKey;
+
+            VideoEncodedEvent encodedEvent = new VideoEncodedEvent(
+                    event.getMovieId(),
+                    hlsUrl,
+                    masterPlaylistKey,
+                    true,
+                    null
+            );
+            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(),encodedEvent);
+            log.info("VideoEncodedEvent published for movie".event.getMovieId());
+
         }
         catch (Exception e){
+            log.error("Encoding failed for movie : {} - {}", event.getMovieId(), e.getMessage());
 
+            //Publish Failure Event
+            VideoEncodedEvent failureEvent = new VideoEncodedEvent(
+                    event.getMovieId(),
+                    null,
+                    null,
+                    false,
+                    e.getMessage()
+            );
+            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(),failureEvent);
+        }
+        finally {
+            //Clean up temp files
+            cleanupTempFiles(jobPath);
         }
     }
 
+    /**
+     * Download file from s3 to local path
+     */
+    private void downloadFromS3(String s3Key, String localPath){
+        //PutObjectRequest uploads a file to S3, while GetObjectRequest retrieves a file from Amazon S3 bucket.
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .build();
+        s3Client.getObject(getObjectRequest,Paths.get(localPath));
+    }
+
+    /**
+     * Encode Video HLS Using FFmpeg
+     * - Multiple .ts segment files(10 seconds each)
+     * - A .m3u8 playlist file for this quality
+     *
+     *
+     * @param inputPath
+     * @param outputDir
+     * @param width
+     * @param height
+     * @param bitrate
+     * @throws IOException
+     * @throws InterruptedException
+     */ // HLS -> HTTP Live Streaming
+
+    private void encodeToHLS(
+                             String inputPath,
+                             String outputDir,
+                             int width,
+                             int height,
+                             int bitrate) throws IOException , InterruptedException{
+        String playlistPath = outputDir + "playlist.m3u8";
+        String segmentPattern = outputDir + "/segment_%03d.ts";
+
+        //FFmpeg Command for HLS Encoding
+        List<String> command = Arrays.asList(
+                ffmpegPath,
+                "-i", inputPath,                        //Input file
+                "-vf", "scale=" + width + ":" + height, //Scale to Resolution
+                "-c:v", "libx264",                      //Video codec
+                "-b:v", bitrate + "K",                  //video bitrate
+                "-c:a", "aac",                          //Audio Coded
+                "-b:a", "128k",                         // Audio Bitrate
+                "-hls_time", "10",                      // 10 sec segments
+                "-hls_list_size", "0",                  // keep all Segments
+                "-hls_segment_filename", segmentPattern,//segment naming
+                "-f", "hls",                            // Output Format HLS
+                playlistPath                            //OutPut Playlist
+        );
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+        Process process = processBuilder.start();
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("FFmpeg encoding failed with exit code " + exitCode);
+        }
+    }
 }
