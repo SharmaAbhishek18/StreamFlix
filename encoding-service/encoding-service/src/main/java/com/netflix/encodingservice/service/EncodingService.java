@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -211,10 +212,10 @@ public class EncodingService {
         String segmentPattern = outputDir + "/segment_%03d.ts";
 
         //FFmpeg Command for HLS Encoding
-        List<String> command = Arrays.asList(
+        List <String> command = Arrays.asList(
                 ffmpegPath,
                 "-i", inputPath,                        //Input file
-                "-vf", "scale=" + width + ":" + height, //Scale to Resolution
+                "-vf", "scale=" + width + ":" + height, //Scale to Resolution-> vf = Video Filter
                 "-c:v", "libx264",                      //Video codec
                 "-b:v", bitrate + "K",                  //video bitrate
                 "-c:a", "aac",                          //Audio Coded
@@ -232,5 +233,43 @@ public class EncodingService {
         if (exitCode != 0) {
             throw new RuntimeException("FFmpeg encoding failed with exit code " + exitCode);
         }
+    }
+
+    /**
+     * Generate Master HLS Playlist that references all Quality playlist.
+     * This is the file the video player downloads first;
+     * @param masterPlaylistPath
+     * @throws IOException
+     */
+    private void generateMasterPlaylist(String masterPlaylistPath) throws IOException {
+        StringBuilder master = new StringBuilder();
+        master.append("#EXTM3U\n");
+        master.append("#EXT-X-VERSION:3\n\n");
+
+        //Add each quality to master Playlist
+        int[][] qualities = {{1920, 5000, 1080}, {1280, 2800, 720},
+                {854, 1200, 480}, {640, 800, 360}};
+        for (int[] q : qualities) {
+            int width = q[0];
+            int bitrate = q[1];
+            int height = q[2];
+
+            master.append("#EXT-X-STREAM-INF:BANDWIDTH=")
+                    .append(bitrate * 1000)
+                    .append(", RESOLUTION=").append(width).append("x").append(height)
+                    .append(",CODECS=\"avc1.42e01e,mp4a.40.2\"\n");
+            master.append(height).append("p/playlist.m3u8\n\n");
+        }
+        Files.writeString(Paths.get(masterPlaylistPath), master.toString());
+    }
+    private void uploadedEncodedFilesToS3(String localDir,String s3Prefix){
+        File directory = new File(localDir);
+        uploadDirectoryToS3(directory,localDir,s3Prefix);
+    }
+    private void uploadDirectoryToS3(File dir, String baseDir, String s3Prefix){
+        for(File f : dir.listFiles()){
+
+        }
+
     }
 }
