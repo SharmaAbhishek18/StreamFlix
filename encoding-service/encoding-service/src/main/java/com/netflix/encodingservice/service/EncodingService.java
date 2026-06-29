@@ -8,12 +8,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
@@ -93,7 +96,7 @@ public class EncodingService {
      * 4. Create Master Playlist.
      * 5. Upload all Encoded Files Back to s3.
      * 6. Publish Video Encoded Event to Kafka
-     * @param event
+     * @param event //h
      */
     public void encodeVideo(VideoUploadedEvent event) {
         log.info("Starting Encoding Platform for movie: {}",event.getMovieId());
@@ -153,7 +156,7 @@ public class EncodingService {
                     null
             );
             kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(),encodedEvent);
-            log.info("VideoEncodedEvent published for movie".event.getMovieId());
+            log.info("VideoEncodedEvent published for movie",event.getMovieId());
 
         }
         catch (Exception e){
@@ -262,14 +265,58 @@ public class EncodingService {
         }
         Files.writeString(Paths.get(masterPlaylistPath), master.toString());
     }
-    private void uploadedEncodedFilesToS3(String localDir,String s3Prefix){
+    private void uploadedEncodedFilesToS3(String localDir,String s3Prefix) throws IOException{
         File directory = new File(localDir);
         uploadDirectoryToS3(directory,localDir,s3Prefix);
     }
-    private void uploadDirectoryToS3(File dir, String baseDir, String s3Prefix){
-        for(File f : dir.listFiles()){
+    /**
+     * Upload all encoded files from local back to s3
+     * @param dir
+     * @param baseDir
+     * @param s3Prefix
+     */
+    private void uploadDirectoryToS3(File dir, String baseDir, String s3Prefix) throws  IOException {
+        for(File file : dir.listFiles()){
+            if(file.isDirectory()){ // Check if it's a folder
+                uploadDirectoryToS3(file,baseDir,s3Prefix);
+            }
+            else{
+                String relativePath = file.getAbsolutePath()
+                        .substring(baseDir.length() + 1)
+                        .replace("\\","/");
 
+                String s3Key = s3Prefix + relativePath;
+                String contentType = file.getName().endsWith(".m3u8")
+                        ? "application/x-mpegURL"
+                        :"video/MP2T";
+
+                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(s3Key)
+                        .contentType(contentType)
+                        .build();
+                s3Client.putObject(putObjectRequest, RequestBody.fromFile(file));
+                log.debug("Uploaded : {}",s3Key);
+            }
         }
 
+    }
+    /**
+     * Clean Up temp files after Encoding
+     */
+    private void cleanupTempFiles(String jobPath){
+        try{
+            Path dirPath = Paths.get(jobPath);
+            if(Files.exists(dirPath)){
+                Files.walk(dirPath)
+                        .sorted(java.util.Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+                log.info("Cleaned up temp files for job :{}",jobPath);
+            }
+        }
+        catch (IOException e){
+            log.warn("Failed to clean up temp files for job :{}",e.getMessage());
+        }
     }
 }
