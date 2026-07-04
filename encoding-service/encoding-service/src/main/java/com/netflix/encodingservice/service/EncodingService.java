@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -23,27 +22,27 @@ import java.util.List;
 
 /**
  * Admin uploads Interstellar.mp4
- *                     ↓
+ * ↓
  * Video Service
- *                     ↓
+ * ↓
  * Upload raw video to S3
- *                     ↓
+ * ↓
  * Publish Kafka Event
- *                     ↓
+ * ↓
  * Encoding Service receives Event
- *                     ↓
+ * ↓
  * Create local workspace
- *                     ↓
+ * ↓
  * Download raw video from S3
- *                     ↓
+ * ↓
  * FFmpeg creates 1080p,720p,480p,360p
- *                     ↓
+ * ↓
  * Generate HLS playlists
- *                     ↓
+ * ↓
  * Upload encoded files to S3
- *                     ↓
+ * ↓
  * Publish "video.encoded" event
- *                     ↓
+ * ↓
  * Movie ready for users to stream
  */
 
@@ -52,40 +51,35 @@ import java.util.List;
 @RequiredArgsConstructor //Automatically creates a constructor for all final fields.
 public class EncodingService {
 
-    //Used to communicate with AWS S3.
-    private final S3Client s3Client;
-    //Used to send events to Kafka.
-    private final KafkaTemplate<String, VideoEncodedEvent> kafkaTemplate;
-
-    @Value("${aws.s3.bucket-name}")
-    private String bucketName;
-
-    @Value("${ffmpeg.path}")
-    private String ffmpegPath;
-
-    @Value("${encoding.base-path}")
-    private String basePath;
-
     /**
      * After encoding:
      * kafkaTemplate.send(
-     *         VIDEO_ENCODED_TOPIC,event);
+     * VIDEO_ENCODED_TOPIC,event);
      * This notifies other services:"Encoding finished."
      */
 
 
     private static final String VIDEO_ENCODED_TOPIC = "video.encoded";
-
     //Video Qualities to Encode
     //Format : resolution, bitrate,height
     //Bitrate -> How much data is Processed Per Minutes
     private static final List<int[]> VIDEO_QUALITIES = Arrays.asList(
             //new int[]{Width,Bitrate Height}
-            new int[]{1920,5000,1080},  //1080p -> 5000k Bitrate
-            new int[]{1280,2800,720},  // 720p -> 2800k Bitrate
-            new int[]{854,1200,480},  // 480p -> 1200k Bitrate
-            new int[]{640,800,360}    // 360p -> 800k Bitrate
+            new int[]{1920, 5000, 1080},  //1080p -> 5000k Bitrate
+            new int[]{1280, 2800, 720},  // 720p -> 2800k Bitrate
+            new int[]{854, 1200, 480},  // 480p -> 1200k Bitrate
+            new int[]{640, 800, 360}    // 360p -> 800k Bitrate
     );
+    //Used to communicate with AWS S3.
+    private final S3Client s3Client;
+    //Used to send events to Kafka.
+    private final KafkaTemplate<String, VideoEncodedEvent> kafkaTemplate;
+    @Value("${aws.s3.bucket-name}")
+    private String bucketName;
+    @Value("${ffmpeg.path}")
+    private String ffmpegPath;
+    @Value("${encoding.base-path}")
+    private String basePath;
 
     /**
      * Main Encoding Pipeline
@@ -96,15 +90,16 @@ public class EncodingService {
      * 4. Create Master Playlist.
      * 5. Upload all Encoded Files Back to s3.
      * 6. Publish Video Encoded Event to Kafka
+     *
      * @param event //h
      */
     public void encodeVideo(VideoUploadedEvent event) {
-        log.info("Starting Encoding Platform for movie: {}",event.getMovieId());
+        log.info("Starting Encoding Platform for movie: {}", event.getMovieId());
 
         //Create a Unique Path for movie -> Create Working Folder
         String jobPath = basePath + "/" + event.getMovieId();
 
-        try{
+        try {
             //Create Temp Directories
             // C:/videos/101/encoded
             Files.createDirectories(Paths.get(jobPath));
@@ -118,21 +113,21 @@ public class EncodingService {
 
             //Step 1 : Download raw video from s3
             String localVideoPath = jobPath + "/raw_video.mp4";
-             downloadFromS3(event.getVideoKey(),localVideoPath);
+            downloadFromS3(event.getVideoKey(), localVideoPath);
             log.info("Raw video downloaded to {}", localVideoPath);
 
-        // Step 2 & 3. Encode to Multiple Qualities + generate HLS
-            for(int [] qualities : VIDEO_QUALITIES){
-                 int width =   qualities[0];
-                 int bitrate =  qualities[1];
-                 int height = qualities[2];
+            // Step 2 & 3. Encode to Multiple Qualities + generate HLS
+            for (int[] qualities : VIDEO_QUALITIES) {
+                int width = qualities[0];
+                int bitrate = qualities[1];
+                int height = qualities[2];
 
-                 // Create Quality Folder
-                 String qualityDir = jobPath + "/encoded" + height + "p";
-                 Files.createDirectories(Paths.get(qualityDir));
+                // Create Quality Folder
+                String qualityDir = jobPath + "/encoded" + height + "p";
+                Files.createDirectories(Paths.get(qualityDir));
 
-                 encodeToHLS(localVideoPath,qualityDir,width,height,bitrate);
-                 log.info("Encoded {}p successfully ", height);
+                encodeToHLS(localVideoPath, qualityDir, width, height, bitrate);
+                log.info("Encoded {}p successfully ", height);
             }
             //Step 4 :Generate Master Playlist
             String masterPlaylistPath = jobPath + "/encoded/master.m3u8";
@@ -141,7 +136,7 @@ public class EncodingService {
 
             //Step - 5 : Upload all resources file to s3
             String encodedPrefix = "/encoded/" + event.getMovieId() + "/";
-            uploadedEncodedFilesToS3(jobPath + "/encoded" ,encodedPrefix);
+            uploadedEncodedFilesToS3(jobPath + "/encoded", encodedPrefix);
             log.info("All Encoded files Uploaded to s3 successfully ");
 
             //Step 6: Publish video Encoded Event
@@ -155,11 +150,10 @@ public class EncodingService {
                     true,
                     null
             );
-            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(),encodedEvent);
-            log.info("VideoEncodedEvent published for movie",event.getMovieId());
+            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(), encodedEvent);
+            log.info("VideoEncodedEvent published for movie", event.getMovieId());
 
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             log.error("Encoding failed for movie : {} - {}", event.getMovieId(), e.getMessage());
 
             //Publish Failure Event
@@ -170,9 +164,8 @@ public class EncodingService {
                     false,
                     e.getMessage()
             );
-            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(),failureEvent);
-        }
-        finally {
+            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(), failureEvent);
+        } finally {
             //Clean up temp files
             cleanupTempFiles(jobPath);
         }
@@ -181,20 +174,19 @@ public class EncodingService {
     /**
      * Download file from s3 to local path
      */
-    private void downloadFromS3(String s3Key, String localPath){
+    private void downloadFromS3(String s3Key, String localPath) {
         //PutObjectRequest uploads a file to S3, while GetObjectRequest retrieves a file from Amazon S3 bucket.
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(bucketName)
                 .key(s3Key)
                 .build();
-        s3Client.getObject(getObjectRequest,Paths.get(localPath));
+        s3Client.getObject(getObjectRequest, Paths.get(localPath));
     }
 
     /**
      * Encode Video HLS Using FFmpeg
      * - Multiple .ts segment files(10 seconds each)
      * - A .m3u8 playlist file for this quality
-     *
      *
      * @param inputPath
      * @param outputDir
@@ -204,18 +196,17 @@ public class EncodingService {
      * @throws IOException
      * @throws InterruptedException
      */ // HLS -> HTTP Live Streaming
-
     private void encodeToHLS(
-                             String inputPath,
-                             String outputDir,
-                             int width,
-                             int height,
-                             int bitrate) throws IOException , InterruptedException{
+            String inputPath,
+            String outputDir,
+            int width,
+            int height,
+            int bitrate) throws IOException, InterruptedException {
         String playlistPath = outputDir + "playlist.m3u8";
         String segmentPattern = outputDir + "/segment_%03d.ts";
 
         //FFmpeg Command for HLS Encoding
-        List <String> command = Arrays.asList(
+        List<String> command = Arrays.asList(
                 ffmpegPath,
                 "-i", inputPath,                        //Input file
                 "-vf", "scale=" + width + ":" + height, //Scale to Resolution-> vf = Video Filter
@@ -241,6 +232,7 @@ public class EncodingService {
     /**
      * Generate Master HLS Playlist that references all Quality playlist.
      * This is the file the video player downloads first;
+     *
      * @param masterPlaylistPath
      * @throws IOException
      */
@@ -265,30 +257,32 @@ public class EncodingService {
         }
         Files.writeString(Paths.get(masterPlaylistPath), master.toString());
     }
-    private void uploadedEncodedFilesToS3(String localDir,String s3Prefix) throws IOException{
+
+    private void uploadedEncodedFilesToS3(String localDir, String s3Prefix) throws IOException {
         File directory = new File(localDir);
-        uploadDirectoryToS3(directory,localDir,s3Prefix);
+        uploadDirectoryToS3(directory, localDir, s3Prefix);
     }
+
     /**
      * Upload all encoded files from local back to s3
+     *
      * @param dir
      * @param baseDir
      * @param s3Prefix
      */
-    private void uploadDirectoryToS3(File dir, String baseDir, String s3Prefix) throws  IOException {
-        for(File file : dir.listFiles()){
-            if(file.isDirectory()){ // Check if it's a folder
-                uploadDirectoryToS3(file,baseDir,s3Prefix);
-            }
-            else{
+    private void uploadDirectoryToS3(File dir, String baseDir, String s3Prefix) throws IOException {
+        for (File file : dir.listFiles()) {
+            if (file.isDirectory()) { // Check if it's a folder
+                uploadDirectoryToS3(file, baseDir, s3Prefix);
+            } else {
                 String relativePath = file.getAbsolutePath()
                         .substring(baseDir.length() + 1)
-                        .replace("\\","/");
+                        .replace("\\", "/");
 
                 String s3Key = s3Prefix + relativePath;
                 String contentType = file.getName().endsWith(".m3u8")
                         ? "application/x-mpegURL"
-                        :"video/MP2T";
+                        : "video/MP2T";
 
                 PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                         .bucket(bucketName)
@@ -296,27 +290,27 @@ public class EncodingService {
                         .contentType(contentType)
                         .build();
                 s3Client.putObject(putObjectRequest, RequestBody.fromFile(file));
-                log.debug("Uploaded : {}",s3Key);
+                log.debug("Uploaded : {}", s3Key);
             }
         }
 
     }
+
     /**
      * Clean Up temp files after Encoding
      */
-    private void cleanupTempFiles(String jobPath){
-        try{
+    private void cleanupTempFiles(String jobPath) {
+        try {
             Path dirPath = Paths.get(jobPath);
-            if(Files.exists(dirPath)){
+            if (Files.exists(dirPath)) {
                 Files.walk(dirPath)
                         .sorted(java.util.Comparator.reverseOrder())
                         .map(Path::toFile)
                         .forEach(File::delete);
-                log.info("Cleaned up temp files for job :{}",jobPath);
+                log.info("Cleaned up temp files for job :{}", jobPath);
             }
-        }
-        catch (IOException e){
-            log.warn("Failed to clean up temp files for job :{}",e.getMessage());
+        } catch (IOException e) {
+            log.warn("Failed to clean up temp files for job :{}", e.getMessage());
         }
     }
 }
