@@ -33,7 +33,7 @@ public class ContentController {
     }
 
     @GetMapping
-    public ResponseEntity <MovieResponse> getAllMovies() {
+    public ResponseEntity<List<MovieResponse>> getAllMovies(){
         return ResponseEntity.ok(contentService.getAllMovies());
     }
 
