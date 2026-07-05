@@ -42,6 +42,16 @@ public class StreamingService {
      *  */
 
     public StreamingResponse getStreamingUrl(String movieId,String playlistKey) {
+        log.info("Getting streaming URL for movie : {}",movieId);
+
+        String cacheKey = Streaming_URL_CACHE_PREFIX + movieId ;
+
+        //Check redis cache first
+        String cachedUrl = redisTemplate.opsForValue().get(cacheKey);
+        if (cachedUrl != null) {
+            log.info("Found streaming URL for movie : {}",movieId);
+            return new StreamingResponse(movieId,cachedUrl,"1080,720,480,360",presignedUrlExpiry);
+        }
 
     }
 
