@@ -1,6 +1,6 @@
 package com.netflix.streamingservice.controller;
 
-import com.netflix.streamingservice.dto.StreamingResponse;
+import com.netflix.streamingservice.dto.StreamingResponse; 
 import com.netflix.streamingservice.service.StreamingService;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
