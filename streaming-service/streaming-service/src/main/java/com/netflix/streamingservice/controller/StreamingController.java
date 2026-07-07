@@ -2,15 +2,12 @@ package com.netflix.streamingservice.controller;
 
 import com.netflix.streamingservice.dto.StreamingResponse; 
 import com.netflix.streamingservice.service.StreamingService;
-import lombok.AllArgsConstructor;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/stream")
@@ -43,10 +40,28 @@ public class StreamingController {
         }
 
         StreamingResponse response = streamingService.getStreamingUrl(movieId,playlistKey);
+
         return ResponseEntity.ok(response);
-
-
     }
 
+    /**
+     * Server signed m3u8 playlist content
+     * called by HLS Player for each quality playlist
+     * @param movieId
+     * @param path
+     * @return
+     */
+    @GetMapping("/{movieId}/playlist")
+    public ResponseEntity<String>getSignedPlaylist(
+            @PathVariable String movieId,
+            @RequestParam String path){
+
+        String signedPlaylist = streamingService.getSignedPlaylist(movieId,path);
+
+        return ResponseEntity.ok()
+                .header("Content-Type","application/x-mpegURL")
+                .body(signedPlaylist);
+
+    }
 
 }
