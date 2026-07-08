@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import model.Genre;
+import com.netflix.contentservice.model.Genre;
 
 @Data
 @AllArgsConstructor

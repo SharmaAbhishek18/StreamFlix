@@ -2,12 +2,12 @@ package com.netflix.contentservice.service;
 
 import com.netflix.contentservice.dto.MovieRequest;
 import com.netflix.contentservice.dto.MovieResponse;
+import com.netflix.contentservice.model.Movie;
 import com.netflix.contentservice.respository.MovieRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import model.Genre;
-import model.Movie;
-import model.VideoStatus;
+import com.netflix.contentservice.model.Genre;
+import com.netflix.contentservice.model.VideoStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -29,7 +29,7 @@ public class ContentService {
 
         log.info("Adding movie with title {}", request.getTitle());
 
-        Movie  movie = new Movie();
+        Movie movie = new Movie();
         movie.setTitle(request.getTitle());
         movie.setDescription(request.getDescription());
         movie.setGenre(request.getGenre());

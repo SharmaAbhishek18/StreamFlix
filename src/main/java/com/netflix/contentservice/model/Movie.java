@@ -1,4 +1,4 @@
-package model;
+package com.netflix.contentservice.model;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 @Table(name = "movies")
 @Data
+@Entity
 @NoArgsConstructor
 @AllArgsConstructor
 //@Builder

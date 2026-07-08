@@ -1,4 +1,4 @@
-package model;
+package com.netflix.contentservice.model;
 
 /**
  * Tracks the video processing Lifecycle

@@ -1,14 +1,12 @@
 package com.netflix.contentservice.dto;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import model.Genre;
-import model.VideoStatus;
+import com.netflix.contentservice.model.Genre;
+import com.netflix.contentservice.model.VideoStatus;
 
 import java.time.LocalDateTime;
 

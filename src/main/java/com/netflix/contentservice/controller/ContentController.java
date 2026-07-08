@@ -5,15 +5,12 @@ import com.netflix.contentservice.dto.MovieResponse;
 import com.netflix.contentservice.service.ContentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import lombok.extern.slf4j.XSlf4j;
-import model.Genre;
+import com.netflix.contentservice.model.Genre;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.swing.text.AbstractDocument;
 import java.util.List;
 
 @RestController

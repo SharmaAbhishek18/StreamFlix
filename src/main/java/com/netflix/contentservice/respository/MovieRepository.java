@@ -1,8 +1,7 @@
 package com.netflix.contentservice.respository;
 
-import com.netflix.contentservice.dto.MovieResponse;
-import model.Genre;
-import model.Movie;
+import com.netflix.contentservice.model.Genre;
+import com.netflix.contentservice.model.Movie;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
