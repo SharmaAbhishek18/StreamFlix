@@ -3,6 +3,10 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Netflix.iml" filepath="$PROJECT_DIR$/.idea/Netflix.iml" />
+      <module fileurl="file://$PROJECT_DIR$/content-service/content-service/content-service.iml" filepath="$PROJECT_DIR$/content-service/content-service/content-service.iml" />
+      <module fileurl="file://$PROJECT_DIR$/encoding-service/encoding-service/encoding-service.iml" filepath="$PROJECT_DIR$/encoding-service/encoding-service/encoding-service.iml" />
+      <module fileurl="file://$PROJECT_DIR$/streaming-service/streaming-service/streaming-service.iml" filepath="$PROJECT_DIR$/streaming-service/streaming-service/streaming-service.iml" />
+      <module fileurl="file://$PROJECT_DIR$/video-service/video-service/video-service.iml" filepath="$PROJECT_DIR$/video-service/video-service/video-service.iml" />
     </modules>
   </component>
 </project>

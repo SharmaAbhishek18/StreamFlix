@@ -54,7 +54,7 @@ public class StreamingService {
 
     private S3Client  s3Client;
     private final S3Presigner s3Presigner;
-    private final RedisTemplate<String ,String> redisTemplate;
+    private final RedisTemplate <String ,String> redisTemplate;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;

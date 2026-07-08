@@ -16,11 +16,12 @@ server:
 
 #AWS Configuration
 aws:
-  access-key : ${AWS_ACCESS_KEY:your-access-key}
-  secret-key : ${AWS_SECRET_KEY:your-secret-key}
+  access-key : ${AWS_ACCESS_KEY:AKIA55ICQMWCAIJB37M3}
+  secret-key : ${AWS_SECRET_KEY:LImPWnDcsXaAucCY/PRjY8VCuWbRRngSnwiL2z1p}
   region : ${AWS_REGION:ap-south-1}  #Check it once from AWS Account
   s3:
-    bucket-name:${AWS_BUCKET_NAME:abcdbucket}
+    bucket-name: ${AWS_BUCKET_NAME:netflix-streaming-videos-956172363140-ap-south-1-an}
+
   #Actuator
   management:
     endpoints:
