@@ -1,16 +1,29 @@
 package com.netflix.encodingservice.event;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class VideoEncodedEvent {
+
     private String movieId;
-    private String hlsUrl; //Master Playlist URL for streaming
-    private String masterPlaylistKey;//S3 key if master.m3u8
+    private String hlsUrl;
+    private String masterPlaylistKey;
     private boolean success;
-    private  String errorMessage;// If Encoding failed
+    private String errorMessage;
+
+    public VideoEncodedEvent(
+            String movieId,
+            String hlsUrl,
+            String masterPlaylistKey,
+            boolean success,
+            String errorMessage) {
+        this.movieId = movieId;
+        this.hlsUrl = hlsUrl;
+        this.masterPlaylistKey = masterPlaylistKey;
+        this.success = success;
+        this.errorMessage = errorMessage;
+
+    }
 }

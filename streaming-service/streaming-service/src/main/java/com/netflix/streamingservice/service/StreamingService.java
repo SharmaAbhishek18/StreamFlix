@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StreamingService {
 
-    private S3Client  s3Client;
+    private final S3Client  s3Client;
     private final S3Presigner s3Presigner;
     private final RedisTemplate <String ,String> redisTemplate;
 

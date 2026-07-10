@@ -39,11 +39,11 @@ aws:
 
 #FFmpeg Configuration
 ffmpeg:
-  path: ${FFMPEG_PATH:ffmpeg}
+  path: ${FFMPEG_PATH:C:/Users/M S I/Downloads/ffmpeg-8.1.2-essentials_build/ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe}
 
 #Temp directory for encoding
 encoding:
-  base-path: ${TEMP_DIR:/tmp/encoding}
+  base-path: ${TEMP_DIR:C:/Users/M S I/Downloads/tmp/encoding}
 
 management:
   endpoints:

@@ -1,6 +1,7 @@
 package com.netflix.encodingservice.service;
 
 import com.netflix.encodingservice.event.VideoUploadedEvent;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -10,7 +11,12 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @RequiredArgsConstructor
 public class VideoEventConsumer {
-
+    @PostConstruct
+    public void init() {
+        log.info("================================");
+        log.info("VideoEventConsumer Bean Created");
+        log.info("================================");
+    }
     private final EncodingService encodingService;
 
     /**

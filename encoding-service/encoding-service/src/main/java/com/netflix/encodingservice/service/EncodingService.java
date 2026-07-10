@@ -93,9 +93,16 @@ public class EncodingService {
      *
      * @param event //h
      */
-    public void encodeVideo(VideoUploadedEvent event) {
-        log.info("Starting Encoding Platform for movie: {}", event.getMovieId());
 
+    public void encodeVideo(VideoUploadedEvent event) {
+     //   log.info("Starting Encoding Platform for movie: {}", event.getMovieId());
+        log.info("==============================================");
+        log.info("ENCODING STARTED");
+        log.info("Movie ID        : {}", event.getMovieId());
+        log.info("Video Key       : {}", event.getVideoKey());
+        log.info("Bucket          : {}", bucketName);
+        log.info("Temp Directory  : {}", basePath);
+        log.info("==============================================");
         //Create a Unique Path for movie -> Create Working Folder
         String jobPath = basePath + "/" + event.getMovieId();
 
@@ -114,7 +121,15 @@ public class EncodingService {
             //Step 1 : Download raw video from s3
             String localVideoPath = jobPath + "/raw_video.mp4";
             downloadFromS3(event.getVideoKey(), localVideoPath);
-            log.info("Raw video downloaded to {}", localVideoPath);
+            //log.info("Raw video downloaded to {}", localVideoPath);
+            File downloaded = new File(localVideoPath);
+
+            log.info("----------------------------------------------");
+            log.info("DOWNLOAD SUCCESS");
+            log.info("Local Path : {}", localVideoPath);
+            log.info("Exists     : {}", downloaded.exists());
+            log.info("Size       : {} bytes", downloaded.length());
+            log.info("----------------------------------------------");
 
             // Step 2 & 3. Encode to Multiple Qualities + generate HLS
             for (int[] qualities : VIDEO_QUALITIES) {
@@ -123,19 +138,37 @@ public class EncodingService {
                 int height = qualities[2];
 
                 // Create Quality Folder
-                String qualityDir = jobPath + "/encoded" + height + "p";
+                String qualityDir = jobPath + "/encoded/" + height + "p";
                 Files.createDirectories(Paths.get(qualityDir));
 
+                log.info("-----------------------------------------");
+                log.info("Starting {}p Encoding", height);
+                log.info("Resolution : {}x{}", width, height);
+                log.info("Bitrate    : {} kbps", bitrate);
+                log.info("Output Dir : {}", qualityDir);
+                log.info("----------------------------------------");
+
                 encodeToHLS(localVideoPath, qualityDir, width, height, bitrate);
-                log.info("Encoded {}p successfully ", height);
+
+                log.info("{}p Encoding Completed", height);
             }
             //Step 4 :Generate Master Playlist
             String masterPlaylistPath = jobPath + "/encoded/master.m3u8";
+        //    generateMasterPlaylist(masterPlaylistPath);
+        //    log.info("Master playlist Generated Successfully");
             generateMasterPlaylist(masterPlaylistPath);
-            log.info("Master playlist Generated Successfully");
+
+            File master = new File(masterPlaylistPath);
+
+            log.info("======================================");
+            log.info("MASTER PLAYLIST GENERATED");
+            log.info("Exists : {}", master.exists());
+            log.info("Path   : {}", masterPlaylistPath);
+            log.info("======================================");
 
             //Step - 5 : Upload all resources file to s3
-            String encodedPrefix = "/encoded/" + event.getMovieId() + "/";
+            String encodedPrefix = "encoded/" + event.getMovieId() + "/";
+            log.info("Uploading encoded files to S3...");
             uploadedEncodedFilesToS3(jobPath + "/encoded", encodedPrefix);
             log.info("All Encoded files Uploaded to s3 successfully ");
 
@@ -150,12 +183,30 @@ public class EncodingService {
                     true,
                     null
             );
-            kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(), encodedEvent);
-            log.info("VideoEncodedEvent published for movie", event.getMovieId());
+            log.info("=========================================");
+            log.info("VIDEO ENCODED EVENT");
+            log.info("Movie ID        : {}", event.getMovieId());
+            log.info("Master Playlist : {}", masterPlaylistKey);
+            log.info("HLS URL         : {}", hlsUrl);
+            log.info("Kafka Topic     : {}", VIDEO_ENCODED_TOPIC);
+            log.info("=========================================");
+           // kafkaTemplate.send(VIDEO_ENCODED_TOPIC, event.getMovieId(), encodedEvent);
+            kafkaTemplate.send(
+                    VIDEO_ENCODED_TOPIC,
+                    event.getMovieId(),
+                    encodedEvent
+            );
+
+            log.info("Kafka Event Published Successfully.");
+            log.info("VideoEncodedEvent Published for movie {}", event.getMovieId());
 
         } catch (Exception e) {
-            log.error("Encoding failed for movie : {} - {}", event.getMovieId(), e.getMessage());
-
+            //log.error("Encoding failed for movie : {} - {}", event.getMovieId(), e.getMessage());
+            log.error("====================================");
+            log.error("ENCODING FAILED");
+            log.error("Movie ID : {}", event.getMovieId());
+            log.error("Reason   : {}", e.getMessage(), e);
+            log.error("====================================");
             //Publish Failure Event
             VideoEncodedEvent failureEvent = new VideoEncodedEvent(
                     event.getMovieId(),
@@ -202,7 +253,7 @@ public class EncodingService {
             int width,
             int height,
             int bitrate) throws IOException, InterruptedException {
-        String playlistPath = outputDir + "playlist.m3u8";
+        String playlistPath = outputDir + "/playlist.m3u8";
         String segmentPattern = outputDir + "/segment_%03d.ts";
 
         //FFmpeg Command for HLS Encoding
@@ -220,13 +271,28 @@ public class EncodingService {
                 "-f", "hls",                            // Output Format HLS
                 playlistPath                            //OutPut Playlist
         );
+        log.info("========================================");
+        log.info("Executing FFmpeg");
+        log.info(String.join(" ", command));
+        log.info("========================================");
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
+        processBuilder.inheritIO();
         Process process = processBuilder.start();
+//        int exitCode = process.waitFor();
+//        if (exitCode != 0) {
+//            throw new RuntimeException("FFmpeg encoding failed with exit code " + exitCode);
+//        }
         int exitCode = process.waitFor();
+
+        log.info("FFmpeg Exit Code : {}", exitCode);
+
         if (exitCode != 0) {
-            throw new RuntimeException("FFmpeg encoding failed with exit code " + exitCode);
+            throw new RuntimeException("FFmpeg failed with exit code " + exitCode);
         }
+
+       // log.info("FFmpeg Finished Successfully");
+        log.info("FFmpeg Finished Successfully for {}p", height);
     }
 
     /**
@@ -271,29 +337,46 @@ public class EncodingService {
      * @param s3Prefix
      */
     private void uploadDirectoryToS3(File dir, String baseDir, String s3Prefix) throws IOException {
-        for (File file : dir.listFiles()) {
-            if (file.isDirectory()) { // Check if it's a folder
-                uploadDirectoryToS3(file, baseDir, s3Prefix);
-            } else {
-                String relativePath = file.getAbsolutePath()
-                        .substring(baseDir.length() + 1)
-                        .replace("\\", "/");
 
-                String s3Key = s3Prefix + relativePath;
-                String contentType = file.getName().endsWith(".m3u8")
-                        ? "application/x-mpegURL"
-                        : "video/MP2T";
+        File[] files = dir.listFiles();
 
-                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                        .bucket(bucketName)
-                        .key(s3Key)
-                        .contentType(contentType)
-                        .build();
-                s3Client.putObject(putObjectRequest, RequestBody.fromFile(file));
-                log.debug("Uploaded : {}", s3Key);
-            }
+        if (files == null) {
+            log.warn("No files found in directory: {}", dir.getAbsolutePath());
+            return;
         }
 
+        for (File file : files) {
+
+            if (file.isDirectory()) {
+                uploadDirectoryToS3(file, baseDir, s3Prefix);
+                continue;
+            }
+
+            String relativePath = file.getAbsolutePath()
+                    .substring(baseDir.length() + 1)
+                    .replace("\\", "/");
+
+            String s3Key = s3Prefix + relativePath;
+
+            String contentType = file.getName().endsWith(".m3u8")
+                    ? "application/x-mpegURL"
+                    : "video/MP2T";
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .contentType(contentType)
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromFile(file));
+
+            log.info("================================== ======");
+            log.info("UPLOAD SUCCESS");
+            log.info("Local File  : {}", file.getAbsolutePath());
+            log.info("S3 Key      : {}", s3Key);
+            log.info("ContentType : {}", contentType);
+            log.info("==================== ====================");
+        }
     }
 
     /**
@@ -307,10 +390,12 @@ public class EncodingService {
                         .sorted(java.util.Comparator.reverseOrder())
                         .map(Path::toFile)
                         .forEach(File::delete);
-                log.info("Cleaned up temp files for job :{}", jobPath);
+                //log.info("Cleaned up temp files for job :{}", jobPath);
+                log.info("Temporary workspace deleted : {}", jobPath);
             }
         } catch (IOException e) {
-            log.warn("Failed to clean up temp files for job :{}", e.getMessage());
+            //log.warn("Failed to clean up temp files for job :{}", e.getMessage());
+            log.warn("Failed to delete temp folder : {}", jobPath, e);
         }
     }
 }

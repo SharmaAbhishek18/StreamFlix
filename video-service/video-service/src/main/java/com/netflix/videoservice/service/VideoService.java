@@ -61,14 +61,32 @@ public class VideoService {
         //Encoding Service Will Consume this and Start FFMpeg processing
 
         VideoUploadedEvent event = new VideoUploadedEvent(
-                videoKey,
                 movieId,
+                videoKey,
                 bucketName,
                 file.getOriginalFilename(),
                 file.getSize()
         );
-        kafkaTemplate.send(VIDEO_UPLOADED_TOPIC, movieId, event);
-        log.info("VideoUploaded to S3 successfully Key: {} ", movieId);
+//        kafkaTemplate.send(VIDEO_UPLOADED_TOPIC, movieId, event);
+//        log.info("VideoUploaded to S3 successfully Key: {} ", movieId);
+        log.info("==========================================");
+        log.info("Publishing VideoUploadedEvent to Kafka");
+        log.info("Topic      : {}", VIDEO_UPLOADED_TOPIC);
+        log.info("Movie ID   : {}", movieId);
+        log.info("Video Key  : {}", videoKey);
+        log.info("Bucket     : {}", bucketName);
+        log.info("==========================================");
+
+        kafkaTemplate.send(VIDEO_UPLOADED_TOPIC, movieId, event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish VideoUploadedEvent", ex);
+                    } else {
+                        log.info("VideoUploadedEvent published successfully");
+                        log.info("Partition : {}", result.getRecordMetadata().partition());
+                        log.info("Offset    : {}", result.getRecordMetadata().offset());
+                    }
+                });
 
         return videoKey;
 
