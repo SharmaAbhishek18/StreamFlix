@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Netflix Player Pro</title>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<style>
+body{margin:0;background:#141414;font-family:Arial;color:#fff}
+.header{padding:20px;text-align:center}
+.logo{font-size:40px;color:#e50914;font-weight:bold}
+.bar{display:flex;gap:10px;justify-content:center;padding:10px 20px}
+input{width:420px;padding:12px;background:#222;border:1px solid #444;color:#fff;border-radius:6px}
+button{padding:12px 20px;background:#e50914;border:none;color:#fff;border-radius:6px;cursor:pointer}
+.player{width:min(1100px,95%);margin:20px auto;background:#000;border-radius:10px;overflow:hidden}
+.toolbar{display:flex;justify-content:flex-end;background:#1d1d1d;padding:10px;gap:10px}
+select{background:#222;color:#fff;padding:8px;border-radius:5px}
+.badge{background:#e50914;padding:8px 12px;border-radius:20px}
+video{width:100%;background:#000}
+#status{text-align:center;padding:10px;color:#00d26a}
+.info{width:min(1100px,95%);margin:auto;background:#222;padding:20px;border-radius:10px}
+.info div{margin:8px 0}
+</style>
+</head>
+<body>
+
+<div class="header">
+<div class="logo">NETFLIX</div>
+</div>
+
+<div class="bar">
+<input id="movieId" placeholder="Movie Id" onkeypress="if(event.key==='Enter')loadMovie()">
+<button id="playBtn" onclick="loadMovie()">▶ Play</button>
+</div>
+
+<div id="status"></div>
+
+<div class="player">
+
+<div class="toolbar">
+
+<div class="badge" id="qualityBadge">AUTO</div>
+
+<select id="quality">
+<option value="-1">Auto</option>
+</select>
+
+<select id="speed">
+<option value="0.5">0.5x</option>
+<option value="1" selected>1x</option>
+<option value="1.25">1.25x</option>
+<option value="1.5">1.5x</option>
+<option value="2">2x</option>
+</select>
+
+<button onclick="toggleFullscreen()">⛶</button>
+
+</div>
+
+<video id="video" controls></video>
+
+</div>
+
+<div class="info">
+<div><b>Movie :</b> <span id="m"></span></div>
+<div><b>Quality :</b> <span id="q"></span></div>
+<div><b>Expiry :</b> <span id="e"></span></div>
+</div>
+
+<script>
+
+let hls=null;
+
+async function loadMovie(){
+
+const id=document.getElementById("movieId").value.trim();
+
+if(!id)return;
+
+document.getElementById("playBtn").disabled=true;
+
+try{
+
+const r=await fetch("http://localhost:8084/api/v1/stream/"+id);
+
+if(!r.ok)throw new Error("Movie not ready");
+
+const data=await r.json();
+
+document.getElementById("m").textContent=data.movieId;
+document.getElementById("q").textContent=data.quality;
+document.getElementById("e").textContent=data.expiresInMinutes+" minutes";
+
+play(data.streamingURL);
+
+document.getElementById("status").innerText="Streaming";
+
+}catch(err){
+
+document.getElementById("status").innerText=err.message;
+
+}finally{
+
+document.getElementById("playBtn").disabled=false;
+
+}
+
+}
+
+function play(url){
+
+const video=document.getElementById("video");
+const selector=document.getElementById("quality");
+
+selector.innerHTML='<option value="-1">Auto</option>';
+
+if(hls)hls.destroy();
+
+hls=new Hls({
+
+xhrSetup:function(xhr,url){
+
+if(url.includes(".m3u8")&&!url.includes("X-Amz")){
+
+const id=document.getElementById("movieId").value;
+
+const path=encodeURIComponent(url.split(".amazonaws.com/")[1]);
+
+xhr.open("GET","http://localhost:8084/api/v1/stream/"+id+"/playlist?path="+path);
+
+}
+
+}
+
+});
+
+hls.loadSource(url);
+
+hls.attachMedia(video);
+
+hls.on(Hls.Events.MANIFEST_PARSED,function(){
+
+hls.levels.forEach((l,i)=>{
+
+let o=document.createElement("option");
+
+o.value=i;
+
+o.text=(l.height||"Unknown")+"p";
+
+selector.appendChild(o);
+
+});
+
+video.play();
+
+});
+
+hls.on(Hls.Events.LEVEL_SWITCHED,function(e,d){
+
+let level=hls.levels[d.level];
+
+if(level){
+
+document.getElementById("qualityBadge").innerText=level.height+"p";
+
+}
+
+});
+
+}
+
+document.getElementById("quality").addEventListener("change",function(){
+
+if(!hls)return;
+
+let v=parseInt(this.value);
+
+if(v==-1){
+
+hls.currentLevel=-1;
+
+document.getElementById("qualityBadge").innerText="AUTO";
+
+}else{
+
+hls.nextLevel=v;
+
+}
+
+});
+
+document.getElementById("speed").addEventListener("change",function(){
+
+document.getElementById("video").playbackRate=parseFloat(this.value);
+
+});
+
+function toggleFullscreen(){
+
+const v=document.getElementById("video");
+
+if(document.fullscreenElement){
+
+document.exitFullscreen();
+
+}else{
+
+v.requestFullscreen();
+
+}
+
+}
+
+document.addEventListener("keydown",function(e){
+
+const v=document.getElementById("video");
+
+if(e.code==="Space"){e.preventDefault();v.paused?v.play():v.pause();}
+if(e.key==="f")toggleFullscreen();
+if(e.key==="m")v.muted=!v.muted;
+if(e.key==="ArrowRight")v.currentTime+=10;
+if(e.key==="ArrowLeft")v.currentTime-=10;
+
+});
+
+</script>
+
+</body>
+</html>
