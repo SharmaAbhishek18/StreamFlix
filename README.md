@@ -9,7 +9,7 @@
 ![Redis](https://img.shields.io/badge/Redis-Cache-red)
 ![Docker](https://img.shields.io/badge/Docker-Container-blue)
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-Video-green)
-![License](https://img.shields.io/badge/License-MIT-blue)
+
 
 ---
 
